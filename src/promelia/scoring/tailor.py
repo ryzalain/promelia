@@ -455,7 +455,7 @@ def tailor_resume(
 
 # ── Batch Entry Point ────────────────────────────────────────────────────
 
-def run_tailoring(min_score: int = 7, limit: int = 20,
+def run_tailoring(min_score: int = 5, limit: int = 20,
                   validation_mode: str = "normal") -> dict:
     """Generate tailored resumes for high-scoring jobs.
 
@@ -471,7 +471,19 @@ def run_tailoring(min_score: int = 7, limit: int = 20,
     resume_text = RESUME_PATH.read_text(encoding="utf-8")
     conn = get_connection()
 
-    jobs = get_jobs_by_stage(conn=conn, stage="pending_tailor", min_score=min_score, limit=limit)
+    cwd_lower = str(Path.cwd()).lower()
+    if "onedrive" in cwd_lower:
+        log.warning("Running from OneDrive may block writes. Use C:\\promelia")
+
+    raw_jobs = get_jobs_by_stage(conn=conn, stage="pending_tailor", limit=max(limit * 10, 1000))
+    jobs = []
+    for job in raw_jobs:
+        if job.get("fit_score", 0) < min_score:
+            log.info("Skipping %s score %s < min_score %s", job.get("url"), job.get("fit_score"), min_score)
+        else:
+            jobs.append(job)
+            if len(jobs) >= limit:
+                break
 
     if not jobs:
         log.info("No untailored jobs with score >= %d.", min_score)
@@ -497,7 +509,12 @@ def run_tailoring(min_score: int = 7, limit: int = 20,
 
             # Save tailored resume text
             txt_path = TAILORED_DIR / f"{prefix}.txt"
-            txt_path.write_text(tailored, encoding="utf-8")
+            try:
+                txt_path.write_text(tailored, encoding="utf-8")
+                log.info("Writing %s to %s", job["url"], txt_path.absolute())
+            except IOError as e:
+                log.error("IOError writing %s to %s: %s", job["url"], txt_path.absolute(), e)
+                raise
 
             # Save job description for traceability
             job_path = TAILORED_DIR / f"{prefix}_JOB.txt"
@@ -524,6 +541,20 @@ def run_tailoring(min_score: int = 7, limit: int = 20,
                     pdf_path = str(convert_to_pdf(txt_path))
                 except Exception:
                     log.debug("PDF generation failed for %s", txt_path, exc_info=True)
+
+                now = datetime.now(timezone.utc).isoformat()
+                conn.execute(
+                    "UPDATE jobs SET tailored_resume_path=?, tailored_at=?, "
+                    "tailor_attempts=COALESCE(tailor_attempts,0)+1 WHERE url=?",
+                    (str(txt_path), now, job["url"]),
+                )
+                conn.commit()
+            else:
+                conn.execute(
+                    "UPDATE jobs SET tailor_attempts=COALESCE(tailor_attempts,0)+1 WHERE url=?",
+                    (job["url"],)
+                )
+                conn.commit()
 
             result = {
                 "url": job["url"],
@@ -555,24 +586,12 @@ def run_tailoring(min_score: int = 7, limit: int = 20,
             result["title"][:40],
         )
 
-    # Persist to DB: increment attempt counter for ALL, save path only for approved
-    now = datetime.now(timezone.utc).isoformat()
-    _success_statuses = {"approved", "approved_with_judge_warning"}
-    for r in results:
-        if r["status"] in _success_statuses:
-            conn.execute(
-                "UPDATE jobs SET tailored_resume_path=?, tailored_at=?, "
-                "tailor_attempts=COALESCE(tailor_attempts,0)+1 WHERE url=?",
-                (r["path"], now, r["url"]),
-            )
-        else:
-            conn.execute(
-                "UPDATE jobs SET tailor_attempts=COALESCE(tailor_attempts,0)+1 WHERE url=?",
-                (r["url"],),
-            )
-    conn.commit()
-
     elapsed = time.time() - t0
+
+    tailored_count = conn.execute("SELECT COUNT(*) FROM jobs WHERE tailored_resume_path IS NOT NULL").fetchone()[0]
+    actual_files = len(list(TAILORED_DIR.glob("*.txt")))
+    if actual_files != tailored_count:
+        raise ValueError(f"Mismatch: {actual_files} files in {TAILORED_DIR} but {tailored_count} in DB.")
     log.info(
         "Tailoring done in %.1fs: %d approved, %d failed_validation, %d failed_judge, %d errors",
         elapsed,

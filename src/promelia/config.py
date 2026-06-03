@@ -17,7 +17,9 @@ SEARCH_CONFIG_PATH = APP_DIR / "searches.yaml"
 ENV_PATH = APP_DIR / ".env"
 
 # Generated output
-TAILORED_DIR = APP_DIR / "tailored_resumes"
+OUTPUT_DIR = Path.cwd() / "output"
+TAILORED_DIR = OUTPUT_DIR / "tailored"
+APPLY_INPUT_DIR = TAILORED_DIR
 COVER_LETTER_DIR = APP_DIR / "cover_letters"
 LOG_DIR = APP_DIR / "logs"
 
@@ -162,7 +164,7 @@ def load_base_urls() -> dict[str, str | None]:
 # ---------------------------------------------------------------------------
 
 DEFAULTS = {
-    "min_score": 7,
+    "min_score": 5,
     "max_apply_attempts": 3,
     "max_tailor_attempts": 5,
     "poll_interval": 60,

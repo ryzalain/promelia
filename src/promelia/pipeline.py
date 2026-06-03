@@ -121,7 +121,7 @@ def _run_score() -> dict:
         return {"status": f"error: {e}"}
 
 
-def _run_tailor(min_score: int = 7, validation_mode: str = "normal") -> dict:
+def _run_tailor(min_score: int = 5, validation_mode: str = "normal") -> dict:
     """Stage: Resume tailoring — generate tailored resumes for high-fit jobs."""
     try:
         from promelia.scoring.tailor import run_tailoring
@@ -132,7 +132,7 @@ def _run_tailor(min_score: int = 7, validation_mode: str = "normal") -> dict:
         return {"status": f"error: {e}"}
 
 
-def _run_cover(min_score: int = 7, validation_mode: str = "normal") -> dict:
+def _run_cover(min_score: int = 5, validation_mode: str = "normal") -> dict:
     """Stage: Cover letter generation."""
     try:
         from promelia.scoring.cover_letter import run_cover_letters
@@ -244,7 +244,7 @@ _PENDING_SQL: dict[str, str] = {
 _STREAM_POLL_INTERVAL = 10
 
 
-def _count_pending(stage: str, min_score: int = 7) -> int:
+def _count_pending(stage: str, min_score: int = 5) -> int:
     """Count pending work items for a stage."""
     sql = _PENDING_SQL.get(stage)
     if sql is None:
@@ -259,7 +259,7 @@ def _run_stage_streaming(
     stage: str,
     tracker: _StageTracker,
     stop_event: threading.Event,
-    min_score: int = 7,
+    min_score: int = 5,
     workers: int = 1,
     validation_mode: str = "normal",
 ) -> None:
@@ -443,7 +443,7 @@ def _run_streaming(ordered: list[str], min_score: int, workers: int = 1,
 
 def run_pipeline(
     stages: list[str] | None = None,
-    min_score: int = 7,
+    min_score: int = 5,
     dry_run: bool = False,
     stream: bool = False,
     workers: int = 1,
