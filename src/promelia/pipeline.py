@@ -507,12 +507,12 @@ def run_pipeline(
     console.print(f"\n{'=' * 70}")
     summary = Table(title="Pipeline Summary", show_header=True, header_style="bold")
     summary.add_column("Stage", style="bold")
-    summary.add_column("Status")
+    summary.add_column("Status", overflow="fold")
     summary.add_column("Time", justify="right")
 
     for r in result["stages"]:
         elapsed_str = f"{r['elapsed']:.1f}s"
-        status_display = r["status"][:30]
+        status_display = r["status"]
         if r["status"] == "ok":
             style = "green"
         elif r["status"] in ("partial", "skipped"):

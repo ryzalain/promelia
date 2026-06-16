@@ -588,10 +588,14 @@ def run_tailoring(min_score: int = 5, limit: int = 20,
 
     elapsed = time.time() - t0
 
-    tailored_count = conn.execute("SELECT COUNT(*) FROM jobs WHERE tailored_resume_path IS NOT NULL").fetchone()[0]
-    actual_files = len(list(TAILORED_DIR.glob("*.txt")))
-    if actual_files != tailored_count:
-        raise ValueError(f"Mismatch: {actual_files} files in {TAILORED_DIR} but {tailored_count} in DB.")
+    missing_files = []
+    for res in results:
+        if res["status"] in ("approved", "approved_with_judge_warning") and res["path"]:
+            if not Path(res["path"]).exists():
+                missing_files.append(res["path"])
+    
+    if missing_files:
+        raise ValueError(f"Validation failed: {len(missing_files)} tailored files missing from disk after generation.")
     log.info(
         "Tailoring done in %.1fs: %d approved, %d failed_validation, %d failed_judge, %d errors",
         elapsed,
